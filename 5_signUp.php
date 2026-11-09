@@ -1,205 +1,140 @@
 <?php
+require __DIR__ . '/includes/bootstrap.php';
 
-session_start();
+if (is_logged_in()) {
+    redirect('6_trade.php');
+}
 
-if($_SERVER["REQUEST_METHOD"]=="POST"){
-    include('3_conn.php');
-    $uname=$_POST['uname'];
-    $email=$_POST['email'];
-    $uage=$_POST['uage'];
-    $password = $_POST['password'];
-    $cpassword = $_POST['cpassword'];
-    $usex = $_POST['usex'];
-    $ucity=$_POST['ucity'];
-    $country=$_POST['country'];
-    $upincode=$_POST['upincode'];
-    $uphone=$_POST['uphone'];
+$fields = ['uname' => '', 'email' => '', 'uage' => '', 'usex' => '', 'uphone' => '',
+           'ucity' => '', 'country' => '', 'upincode' => ''];
+$errors = [];
 
-    if($cpassword==$password){
-            $sql="INSERT INTO user VALUES ('$email', '$uname', '$uage', '$usex','$password','$ucity','$upincode', '$uphone','$country')";
+if (is_post()) {
+    verify_csrf();
+    foreach (array_keys($fields) as $key) {
+        $fields[$key] = post_str($key, $key === 'email' ? 190 : 100);
+    }
+    $password  = (string) ($_POST['password'] ?? '');
+    $cpassword = (string) ($_POST['cpassword'] ?? '');
 
-        $result=mysqli_query($conn,$sql);
-            
-            if($result){
-                echo'<script type="text/javascript">alert("Congratulations!! You are registered as Trader. Please Login now to Enter into our website")</script>';
+    if ($fields['uname'] === '') {
+        $errors[] = 'Name is required.';
+    }
+    if (!filter_var($fields['email'], FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Enter a valid email address.';
+    }
+    $age = filter_var($fields['uage'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 18, 'max_range' => 120]]);
+    if ($age === false) {
+        $errors[] = 'Age must be a number between 18 and 120.';
+    }
+    if (!in_array($fields['usex'], ['male', 'female', 'other'], true)) {
+        $errors[] = 'Select your sex.';
+    }
+    if (!preg_match('/^[0-9+\- ]{6,20}$/', $fields['uphone'])) {
+        $errors[] = 'Enter a valid mobile number.';
+    }
+    if ($fields['ucity'] === '' || $fields['country'] === '') {
+        $errors[] = 'City and country are required.';
+    }
+    if (!preg_match('/^[0-9A-Za-z \-]{3,10}$/', $fields['upincode'])) {
+        $errors[] = 'Enter a valid pincode.';
+    }
+    if (strlen($password) < 8) {
+        $errors[] = 'Password must be at least 8 characters.';
+    } elseif (!hash_equals($password, $cpassword)) {
+        $errors[] = 'Password and confirm password do not match.';
+    }
+
+    if (!$errors) {
+        if (find_user($fields['email'])) {
+            $errors[] = 'An account with that email already exists. Log in instead.';
+        } else {
+            $stmt = db()->prepare(
+                'INSERT INTO user (email, uname, uage, usex, password, ucity, upincode, uphone, country)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            try {
+                $stmt->execute([
+                    $fields['email'], $fields['uname'], $age, $fields['usex'],
+                    password_hash($password, PASSWORD_DEFAULT),
+                    $fields['ucity'], $fields['upincode'], $fields['uphone'], $fields['country'],
+                ]);
+                flash('success', 'Your trader account is ready. Please log in.');
+                redirect('4_login.php');
+            } catch (PDOException $ex) {
+                error_log('Trade: sign up failed: ' . $ex->getMessage());
+                $errors[] = 'We could not create your account. Please try again.';
             }
-            else{
-                $message = "Unable to add new Trader due to" .mysqli_error($conn);
-                echo '<script language = "Javascript" type="text/javascript">';
-                echo 'alert('.json_encode($message) .') ;';
-                echo '</script>';
-            }
-        }
-        else{
-            echo'<script type="text/javascript">alert("Password and confirm password does not match")</script>';
         }
     }
+}
+
+$title  = 'Sign up';
+$active = 'signup';
+require __DIR__ . '/includes/header.php';
 ?>
-
-<!DOCTYPE html>
-<html>
-
-<head>
-    <meta name="viewport" content="width=device-width">
-    <title>Sign Up</title>
-    <style>
-    <?php include './form.css';
-    ?>
-    </style>
-    <style>
-        body{
-            margin:0;
-            padding:0;
-            font-family:montserrat;
-            height:100vh;  
-            overflow:hidden;
-        }
-        .center{
-            position:absolute;
-            top:50%;
-            /* background-color:cyan; */
-            left:50%;
-            transform:translate(-50%,-50%);
-            width:400px;
-            border-radius:10px;
-            display:flex;
-            /* background-color:cyan; */
-        }
-        .head{
-            margin-top:50px;
-            text-align:center;
-            padding:0 0 20px 0;
-            /* border-bottom: 1px solid silver; */
-        }
-        .center form{
-            padding:0 40px;
-            box-sizing:border-box;
-        }
-        form .txt-field{
-            position:relative;
-            border-bottom:2px solid #adadad;
-            margin:30px 0;
-        }
-        .txt-field input{
-            width:100%;
-            padding: 0 5px;
-            height:40px;
-            font-size:16px;
-            border:none;
-            background:none;
-            outline:none;
-        }
-        .txt-field label{
-            position:absolute;
-            top:50%;
-            left:5px;
-            color:#adadad;
-            transform:translateY(-50%);
-            font-size:16px;
-            pointer-events:none;
-            transition:0.5s;
-        }
-        .part1{
-            margin-right:70px;
-        }
-        .txt-field span::before{
-            content:'';
-            position:absolute;
-            top:40px;
-            left:0;
-            width:0%;
-            height:2px;
-            background:#2691d9; 
-            transition:0.5s;
-        }
-        .txt-field input:focus ~ label,.txt-field input:valid ~ label{
-            top:-5px;
-            color:#2691d9;
-        }
-        .txt-field input:focus ~ span::before,.txt-field input:valid ~ span::before{
-            width:100%;
-        }
-        .pass{
-            margin:-5px 0 20px;
-            color:#a6a6a6;
-            cursor:pointer;
-        }
-        .pass:hover{
-            text-decoration:underline;
-        }
-        .center{
-            margin-top:20px;
-        }
-        button{
-            margin-top: 400px;
-            width:350px;
-            height:50px;
-            border:1px solid;
-            background:#2691d9;
-            border-radius:25px;
-            font-size:18px;
-            color:#e9f4fb;
-            font-weight:700;
-            cursor:pointer;
-            outline:none;
-            margin-left:570px;
-            margin-bottom: 1000px;
-            /* position: relative; */
-        }
-        button:hover{
-            border-color:#2691d9;
-            transition:0.5s;    
-        }
-        .submit12{
-            margin-bottom: 1000px;
-        }
-    </style>
-    <link rel="stylesheet" href="2_style.css">
-</head>
-<body>
-    <div class="main">
-        <div class="navbar">
-            <div class="logo"><i class="fa fa-globe"></i>Trade</div>
-            <div class="menu">
-                <ul>
-                    <li><a href="1_main_page.php">Home</a></li>
-                    <li><a href="#">Dashboard</a></li>
-                    <li><a href="#">Contact</a></li>
-                    <li><a href="#">About</a></li>
-                    <li><a href="4_login.php">Registration</a></li>
-                </ul>
+<main class="container auth">
+    <form class="card form auth-card wide" action="5_signUp.php" method="POST">
+        <?= csrf_field() ?>
+        <h1>Create a trader account</h1>
+        <p class="muted">Register to list goods and place import or export requests.</p>
+        <?php if ($errors): ?>
+            <div class="alert alert-error" role="alert">
+                <ul><?php foreach ($errors as $err): ?><li><?= e($err) ?></li><?php endforeach; ?></ul>
+            </div>
+        <?php endif; ?>
+        <div class="form-grid">
+            <div class="field">
+                <label for="uname">Full name</label>
+                <input id="uname" name="uname" type="text" autocomplete="name" required maxlength="100" value="<?= e($fields['uname']) ?>">
+            </div>
+            <div class="field">
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" autocomplete="email" required maxlength="190" value="<?= e($fields['email']) ?>">
+            </div>
+            <div class="field">
+                <label for="uage">Age</label>
+                <input id="uage" name="uage" type="number" min="18" max="120" required value="<?= e($fields['uage']) ?>">
+            </div>
+            <fieldset class="field">
+                <legend>Sex</legend>
+                <div class="radio-row">
+                    <?php foreach (['male' => 'Male', 'female' => 'Female', 'other' => 'Other'] as $val => $label): ?>
+                        <label class="radio">
+                            <input type="radio" name="usex" value="<?= $val ?>" required<?= $fields['usex'] === $val ? ' checked' : '' ?>>
+                            <?= $label ?>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </fieldset>
+            <div class="field">
+                <label for="uphone">Mobile number</label>
+                <input id="uphone" name="uphone" type="tel" autocomplete="tel" required maxlength="20" value="<?= e($fields['uphone']) ?>">
+            </div>
+            <div class="field">
+                <label for="ucity">City</label>
+                <input id="ucity" name="ucity" type="text" autocomplete="address-level2" required maxlength="100" value="<?= e($fields['ucity']) ?>">
+            </div>
+            <div class="field">
+                <label for="country">Country</label>
+                <input id="country" name="country" type="text" autocomplete="country-name" required maxlength="100" value="<?= e($fields['country']) ?>">
+            </div>
+            <div class="field">
+                <label for="upincode">Pincode</label>
+                <input id="upincode" name="upincode" type="text" inputmode="numeric" autocomplete="postal-code" required maxlength="10" value="<?= e($fields['upincode']) ?>">
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+                <p class="hint">At least 8 characters.</p>
+            </div>
+            <div class="field">
+                <label for="cpassword">Confirm password</label>
+                <input id="cpassword" name="cpassword" type="password" autocomplete="new-password" minlength="8" required>
             </div>
         </div>
-        <form action="5_signUp.php" method="POST">
-            <h1 class="head">Sign Up</h1>
-        <div class="center">
-            
-            <div class="part1">
-                <div class="txt-field"> <input name="uname" type="text" required><label>Name</label></div>
-            <div class="txt-field"> <input name="uage" type="number" required><label>Age</label></div>
-            <div style="color:#adadad; padding-left:5px;">Sex <br>
-            <div style="display:flex;">
-                <div style="margin-top:9px;"><label for="male">Male</label><input name="usex" type="radio" style="margin-left:9px" value="male" id="Male" required></div>
-                <div style="margin-top:9px;"><label style="padding-left:2px;" for="female">Female</label><input name="usex" style="margin-left:19px" type="radio" value="female" id="Female"></div>
-                <div style="margin-top:9px;"><label style="padding-left:2px;" for="others">Others</label><input name="usx" type="radio" style="margin-left:18px" value="others" id="Others"></div>
-            </div>
-            </div>
-            <div class="txt-field"> <input name="uphone" type="tel" required><label>Mobile No</label></div>
-            <div class="txt-field"> <input name="email" type="email" required><label>Email ID</label></div>
-            </div>
-            <div class="part2">
-                <div class="txt-field"> <input name="password" type="password" required><label>Create Password</label></div>
-                <div class="txt-field"><input name="cpassword" type="password" required><label>Confirm Password</label></div><br>
-                <div class="txt-field"> <input name="ucity" type="text" required><label>City</label></div>
-                <div class="txt-field"> <input name="country" type="text" required><label>Country</label></div>
-                <div class="txt-field"> <input name="upincode" type="number" required><label>Pincode</label></div>
-            </div>
-        </div>
-        <button type="submit" Align="center">Submit</button>
+        <button type="submit" class="btn btn-primary btn-block">Create account</button>
+        <p class="auth-alt">Already registered? <a href="4_login.php">Log in</a></p>
     </form>
-</div>
-<?php require "footer.php"?>
-
-</body>
-
-</html>
+</main>
+<?php require __DIR__ . '/includes/footer.php';

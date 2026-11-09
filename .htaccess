@@ -1,0 +1,8 @@
+# Keep configuration, includes and SQL files private when served by Apache.
+Options -Indexes
+
+<FilesMatch "^\.(env|git)|\.(sql|md|example)$">
+    Require all denied
+</FilesMatch>
+
+RedirectMatch 403 ^/?(.*/)?(includes|docs/private)/

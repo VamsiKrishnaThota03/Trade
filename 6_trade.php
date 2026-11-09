@@ -1,89 +1,67 @@
 <?php
-session_start();
+require __DIR__ . '/includes/bootstrap.php';
+$user = require_login();
+
+$pdo = db();
+$count = static function (string $sql, array $params = []) use ($pdo): int {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (int) $stmt->fetchColumn();
+};
+$stats = [
+    ['Listings in stock', $count('SELECT COUNT(*) FROM available WHERE qty > 0')],
+    ['Your listings', $count('SELECT COUNT(*) FROM available WHERE email = ?', [$user['email']])],
+    ['Your trades', $count('SELECT COUNT(*) FROM total_table WHERE email = ?', [$user['email']])],
+];
+
+$title  = 'Dashboard';
+$active = 'dash';
+require __DIR__ . '/includes/header.php';
 ?>
+<main class="container">
+    <div class="page-head">
+        <p class="eyebrow">Dashboard</p>
+        <h1>Welcome, <?= e($user['uname']) ?></h1>
+        <p class="muted">What would you like to trade today?</p>
+    </div>
 
+    <div class="stats">
+        <?php foreach ($stats as [$label, $value]): ?>
+            <div class="card stat"><span class="stat-value"><?= e($value) ?></span><span class="stat-label"><?= e($label) ?></span></div>
+        <?php endforeach; ?>
+    </div>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <link rel="stylesheet" href="2_style.css">
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trade</title>
-    <style>
-        body{
-            background-color:white;
-        }
-        .pic1, .pic2, .pic3{
-            margin-top:30px;
-            margin-right:15px;
-        }
-        .img1, .img2, .img3{
-            height:250px;
-            width:400px;
-        }
-        .images{
-            display:flex;
-        }
-        .import a, .add a{
-            text-decoration:none;
-            color:black;
-            font-family:Arial;
-            font-size:20px;
-        }
-        .export a{
-            text-decoration:none;
-            color:black;
-            font-size:20px;
-            font-family:Arial;
-        }
-        .import a:hover, .export a:hover, .add a:hover{
-            font-weight:bold;   
-        }
-        .content{
-            display:flex;
-        }
-        .add{
-            margin-top:60px;
-        }
-    </style>
-</head>
-<body>
-    <?php require "header.php"?>
-    <?php
-    if(isset($_SESSION['MloggedIn'])){
-        if( $_SESSION['MloggedIn']==true){
-            $message = "Welcome ". $_SESSION['uname']." to the Trading Website";
-            echo '<script language = "Javascript" type="text/javascript">';
-            echo 'alert('.json_encode($message) .') ;';
-            echo '</script>';
-        }
-    } 
-    ?>
-    
-        <div class="content">
-            <div class="import">
-            <a href="7_import.php">Import</a>
+    <div class="actions-grid">
+        <a class="card action-card" href="7_import.php">
+            <span class="action-icon" aria-hidden="true">&#8601;</span>
+            <h2>Import</h2>
+            <p class="muted">Search listings by product type and request a quantity.</p>
+        </a>
+        <a class="card action-card" href="12_export.php">
+            <span class="action-icon" aria-hidden="true">&#8599;</span>
+            <h2>Export</h2>
+            <p class="muted">Find a listing by type and name and submit export details.</p>
+        </a>
+        <a class="card action-card" href="10_add_items.php">
+            <span class="action-icon" aria-hidden="true">+</span>
+            <h2>Add items</h2>
+            <p class="muted">List your goods with type, origin, quantity and price.</p>
+        </a>
+        <a class="card action-card" href="16_invoice.php">
+            <span class="action-icon" aria-hidden="true">&#9776;</span>
+            <h2>My trades</h2>
+            <p class="muted">Review every import and export request you have placed.</p>
+        </a>
+    </div>
+
+    <section class="section">
+        <h2 class="section-title">Market trends</h2>
+        <p class="muted">Static reference charts of prices and trade volumes (illustrations, not live data).</p>
+        <div class="charts">
+            <figure class="card chart"><img src="linechart1.png" alt="Line chart of monthly prices of paddy, ragi and maize" loading="lazy"></figure>
+            <figure class="card chart"><img src="linechart2.png" alt="Samsung Electronics sales and profit by segment, 2011 to 2021" loading="lazy"></figure>
+            <figure class="card chart"><img src="chart3.png" alt="Bar chart of annual sales volume in million metric tons" loading="lazy"></figure>
         </div>
-        <div class="export">
-            <a href="12_export.php">Export</a>
-        </div>
-        <div class="add">
-            <a href="10_add_items.php">Add Items</a>
-        </div>
-        </div>
-        <div class="images">
-            <div class="pic1">
-            <img src="linechart1.png" alt="" class="img1">
-        </div>
-        <div class="pic2">
-            <img src="linechart2.png" alt="" class="img2">
-        </div>
-        <div class="pic3">
-            <img src="chart3.png" alt="" class="img3">
-        </div>
-        </div>
-        
-</body>
-</html>
+    </section>
+</main>
+<?php require __DIR__ . '/includes/footer.php';

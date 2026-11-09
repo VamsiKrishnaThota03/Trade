@@ -1,150 +1,116 @@
-<?php require('header.php')?>
 <?php
-    global $pid;
-    if($_SERVER['REQUEST_METHOD']=='POST'){
-        
-        include('3_conn.php');
-        $email = $_POST['email'];
-        $ptype = $_POST['ptype'];
-        $pname = $_POST['pname'];
-        $country = $_POST['country'];
-        $qty = $_POST['qty'];
-        $price = $_POST['price'];
-        
-        $sql = "INSERT INTO available VALUES ('$email','$pid','$ptype','$pname','$country','$qty','$price')";
-        
-        $result = mysqli_query($conn,$sql);
-        if(isset($result)){
-            $message = "Your product succesfully added to our website";
-            echo '<script language = "Javascript" type="text/javascript">';
-            echo 'alert('.json_encode($message) .') ;';
-            echo '</script>';
-        }
-        else{
-            echo "Your item cannot be added";
-        }
+require __DIR__ . '/includes/bootstrap.php';
+$user = require_login();
+
+$fields = ['ptype' => '', 'pname' => '', 'country' => '', 'qty' => '', 'price' => ''];
+$errors = [];
+
+if (is_post()) {
+    verify_csrf();
+    foreach (array_keys($fields) as $key) {
+        $fields[$key] = post_str($key, 100);
     }
+    $qty   = filter_var($fields['qty'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $price = filter_var($fields['price'], FILTER_VALIDATE_FLOAT);
+
+    if ($fields['ptype'] === '' || $fields['pname'] === '' || $fields['country'] === '') {
+        $errors[] = 'Product type, name and country are required.';
+    }
+    if ($qty === false) {
+        $errors[] = 'Quantity must be a whole number of at least 1.';
+    }
+    if ($price === false || $price <= 0 || $price >= 1e10) {
+        $errors[] = 'Price must be a positive number.';
+    }
+
+    if (!$errors) {
+        $stmt = db()->prepare(
+            'INSERT INTO available (email, ptype, pname, country, qty, price) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$user['email'], $fields['ptype'], $fields['pname'], $fields['country'], $qty, round($price, 2)]);
+        flash('success', 'Your product "' . $fields['pname'] . '" was added to the catalogue.');
+        redirect('10_add_items.php');
+    }
+}
+
+$stmt = db()->prepare('SELECT pid, ptype, pname, country, qty, price FROM available WHERE email = ? ORDER BY pid DESC');
+$stmt->execute([$user['email']]);
+$mine = $stmt->fetchAll();
+
+$title  = 'Add items';
+$active = 'add';
+require __DIR__ . '/includes/header.php';
 ?>
+<main class="container">
+    <div class="page-head">
+        <h1>Add items</h1>
+        <p class="muted">List goods so other traders can import or export them.</p>
+    </div>
+    <div class="grid-2">
+        <form class="card form" action="10_add_items.php" method="POST">
+            <?= csrf_field() ?>
+            <h2>New listing</h2>
+            <?php if ($errors): ?>
+                <div class="alert alert-error" role="alert">
+                    <ul><?php foreach ($errors as $err): ?><li><?= e($err) ?></li><?php endforeach; ?></ul>
+                </div>
+            <?php endif; ?>
+            <div class="field">
+                <label for="ptype">Product type</label>
+                <input id="ptype" name="ptype" type="text" required maxlength="100" placeholder="e.g. Grain" value="<?= e($fields['ptype']) ?>">
+            </div>
+            <div class="field">
+                <label for="pname">Product name</label>
+                <input id="pname" name="pname" type="text" required maxlength="100" placeholder="e.g. Basmati rice" value="<?= e($fields['pname']) ?>">
+            </div>
+            <div class="field">
+                <label for="country">Origin country</label>
+                <input id="country" name="country" type="text" required maxlength="100" value="<?= e($fields['country']) ?>">
+            </div>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="qty">Quantity</label>
+                    <input id="qty" name="qty" type="number" min="1" step="1" required value="<?= e($fields['qty']) ?>">
+                </div>
+                <div class="field">
+                    <label for="price">Unit price</label>
+                    <input id="price" name="price" type="number" min="0.01" step="0.01" required value="<?= e($fields['price']) ?>">
+                </div>
+            </div>
+            <p class="hint">Listed under <?= e($user['email']) ?>.</p>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Add item</button>
+            </div>
+        </form>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <style>
-       body{
-            background-color: rgb(243, 250, 250);
-            margin:0;
-            padding:0;
-            font-family:montserrat;
-            height:100vh;  
-            overflow:hidden;
-        }
-        .center{
-            position:absolute;
-            top:50%;
-            /* background-color:cyan; */
-            left:40%;
-            transform:translate(-50%,-50%);
-            width:400px;
-            border-radius:10px;
-            display:flex;
-            /* background-color:cyan; */
-        }
-        .head{
-            margin-left:175px;
-            margin-top:40px;
-            text-align:center;
-            padding:0 0 20px 0;
-            /* border-bottom: 1px solid silver; */
-        }
-        .center form{
-            padding:0 40px;
-            box-sizing:border-box;
-        }
-        form .txt-field{
-            position:relative;
-            border-bottom:2px solid #adadad;
-            margin:25px 0;
-            width: 150%;
-        }
-        .txt-field input{
-            width:100%;
-            padding: 0 5px;
-            height:40px;
-            font-size:16px;
-            border:none;
-            background:none;
-            outline:none;
-        }
-        
-        .txt-field label{
-            position:absolute;
-            top:50%;
-            left:5px;
-            color:#adadad;
-            transform:translateY(-50%);
-            font-size:16px;
-            pointer-events:none;
-            transition:0.5s;
-        }
-        .txt-field span::before{
-            content:'';
-            position:absolute;
-            top:40px;
-            left:0;
-            width:0%;
-            height:2px;
-            background:#2691d9; 
-            transition:0.5s;
-        }
-        .txt-field input:focus ~ label,.txt-field input:valid ~ label{
-            top:-5px;
-            color:#2691d9;
-        }
-        .txt-field input:focus ~ span::before,.txt-field input:valid ~ span::before{
-            width:100%;
-        }
-        .center{
-            margin-top:20px;
-        }
-        button{
-            width:250px;
-            height:50px;
-            border:1px solid;
-            background:#2691d9;
-            border-radius:25px;
-            font-size:18px;
-            color:#e9f4fb;
-            font-weight:700;
-            margin-left:150px;
-            cursor:pointer;
-            outline:none;
-        }
-        button:hover{
-            border-color:#2691d9;
-            transition:0.5s;    
-        }
-    </style>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <div class="center">
-        <form action="10_add_items.php" method="POST">
-            <h1 class="head">Add Items</h1>
-            <div class="part1">
-                <div class="txt-field"> <input name="email" type="email"  required><span></span><label>Email</label></div>
-                
-                <div class="txt-field"> <input type="text" name="ptype" required><label>Product type</label></div>
-                <div class="txt-field"> <input type="text" name="pname" required><label>Product Name</label></div>
-                <div class="txt-field"> <input type="text" name="country" required><label>Country</label></div>
-                <div class="txt-field"> <input type="number" name="qty" required><label>Quantity</label></div>
-
-            <div class="txt-field"> <input type="text" name="price" required><label>Price</label></div>
-            
-            <button type="submit">Add Item</button>
-        </div>
-</form>
-</body>
-</html>
+        <section class="card">
+            <h2>Your listings</h2>
+            <?php if (!$mine): ?>
+                <div class="empty-state compact">
+                    <p class="muted">You have not listed anything yet.</p>
+                </div>
+            <?php else: ?>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                        <tr><th scope="col">ID</th><th scope="col">Product</th><th scope="col">Origin</th>
+                            <th scope="col" class="num">Price</th><th scope="col" class="num">Stock</th></tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($mine as $row): ?>
+                            <tr>
+                                <td data-label="ID">#<?= e($row['pid']) ?></td>
+                                <td data-label="Product"><span class="cell-stack"><strong><?= e($row['pname']) ?></strong><span class="muted"><?= e($row['ptype']) ?></span></span></td>
+                                <td data-label="Origin"><?= e($row['country']) ?></td>
+                                <td data-label="Price" class="num"><?= e(money($row['price'])) ?></td>
+                                <td data-label="Stock" class="num"><?= (int) $row['qty'] === 0 ? '<span class="badge badge-muted">Sold out</span>' : e($row['qty']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </section>
+    </div>
+</main>
+<?php require __DIR__ . '/includes/footer.php';
