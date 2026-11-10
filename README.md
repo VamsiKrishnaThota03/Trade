@@ -72,7 +72,7 @@ Trade/
 Clone the repo into your web server's document root, for example `htdocs/` in XAMPP:
 
 ```bash
-git clone https://github.com/VamsiKrishnaThota03/Trade.git
+git clone https://github.com/VamsiKrishnaThota03/import-export-portal.git
 ```
 
 ### 2. Create the database
